@@ -1,5 +1,8 @@
 pipeline{
     agent any
+	environment{
+imageName = "nava9594/$JOB_NAME:v1.$BUILD_ID"
+}
     triggers {
         pollSCM 'H/2 * * * *'
 		}
@@ -55,6 +58,7 @@ docker image rmi $JOB_NAME:v1.$BUILD_ID nava9594/$JOB_NAME:v1.$BUILD_ID nava9594
         }
         stage('Deploy application on k8s'){
             steps{
+		sh 'sed -i "s#replace#${imageName}#g" deployment.yaml'
                 sh 'kubectl apply -f deployment.yaml'
         }
         }
