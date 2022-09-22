@@ -1,32 +1,75 @@
 pipeline{
     agent any
-    tools {
-        maven 'maven3'
+    triggers {
+        pollSCM 'H/2 * * * *'
+		}
+    tools{
+        maven 'maven'
     }
     stages{
-        stage("SCM"){
+        stage('checkout the code'){
             steps{
-                git 'https://github.com/cloudtechmasters/sonarqube.git'
+                slackSend channel: 'hello-world', message: 'job started'
+                git url:'https://github.com/NavnathChaudhari/sonarqube.git', branch: 'master'
             }
         }
-        stage("Build Artifact") {
+        stage('build the code'){
             steps{
-                sh "mvn clean package"
+                sh 'mvn clean package'
             }
         }
-        stage("Deploy to Sonar") {
+        stage("sonar quality check"){
             steps{
-                withSonarQubeEnv(installationName: 'sonar-scanner', credentialsId: 'sonar-token') {
-                    sh "${ tool ("sonar-scanner")}/sonar-scanner -Dsonar.projectKey=hellospringboot -Dsonar.projectName=hellospringboot -Dsonar.sourceEncoding=UTF-8 -Dsonar.sources=src"
-                }
+                script{
+                    withSonarQubeEnv(credentialsId: 'jenkins-sonar-token') {
+                            sh "mvn sonar:sonar -f /var/lib/jenkins/workspace/new-demo/pom.xml"
+                    }
+                    timeout(time: 1, unit: 'HOURS') {
+                      def qg = waitForQualityGate()
+                      if (qg.status != 'OK') {
+                           error "Pipeline aborted due to quality gate failure: ${qg.status}"
+                      }
+                    }
+                } 
             }
         }
-	stage("Quality Gate") {
-            steps {
-              timeout(time: 1, unit: 'HOURS') {
-                waitForQualityGate abortPipeline: true
-                }
+        stage('create docker image'){
+            steps{
+                sh '''docker image build -t $JOB_NAME:v1.$BUILD_ID .
+docker image tag $JOB_NAME:v1.$BUILD_ID nava9594/$JOB_NAME:v1.$BUILD_ID
+docker image tag $JOB_NAME:v1.$BUILD_ID nava9594/$JOB_NAME:latest'''
             }
+
+        }
+        stage('push the image into docker hub'){
+            steps{
+                withCredentials([string(credentialsId: 'Docker pass', variable: 'docker_pass')]) {
+                    sh "docker login -u nava9594 -p ${docker_pass}"
+
+}
+                    sh '''docker image push nava9594/$JOB_NAME:v1.$BUILD_ID
+docker image push nava9594/$JOB_NAME:latest 
+docker image rmi $JOB_NAME:v1.$BUILD_ID nava9594/$JOB_NAME:v1.$BUILD_ID nava9594/$JOB_NAME:latest'''
+
+            }
+        }
+        stage('Deploy application on k8s'){
+            steps{
+                sh 'kubectl apply -f deployment.yaml'
+        }
         }
     }
-}
+        post{
+        always{
+            echo "========always========"
+        }
+        success{
+            echo "========pipeline executed successfully ========"
+            slackSend channel: 'hello-world', message: ' job success'
+        }
+        failure{
+            echo "========pipeline execution failed========"
+            slackSend channel: 'hello-world', message: ' job failed'
+        }
+        }
+    }
