@@ -11,7 +11,7 @@ public class HelloController {
     public String index() {
         logger.info("adding something here to fail the build");
         logger.debug("adding something here to fail the build for jenkins sonar integration");
-        return "Hello world hii..!!!";
+        return "Hello world ..!!!";
     }
     
 }
