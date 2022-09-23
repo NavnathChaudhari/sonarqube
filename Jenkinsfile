@@ -16,12 +16,12 @@ imageName = "nava9594/$JOB_NAME:v1.$BUILD_ID"
                 git url:'https://github.com/NavnathChaudhari/sonarqube.git', branch: 'master'
             }
         }
-        stage('build the code'){
+        stage('build the code using maven'){
             steps{
                 sh 'mvn clean package'
             }
         }
-        stage("sonar quality check"){
+        stage("test the code in sonaqube"){
             steps{
                 script{
                     withSonarQubeEnv(credentialsId: 'jenkins-sonar-token') {
